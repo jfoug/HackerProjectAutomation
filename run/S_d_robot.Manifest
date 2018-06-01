@@ -1,0 +1,93 @@
+################################################################################
+#
+#   v1.00 working
+#   v1.01 changed to use iimPlayCode() vs running temp file scripts from iimPlay()
+#   v1.02 2 players can play together, allowing one player to send AP to the other.
+#   v1.03 added owned server IDS checking.
+#         dropped switch_to_cracker/decr and use common code switch_to_gateway()
+#   v1.04 fixed a couple bugs in the dual player mode.
+#   v1.05 Added enemy IP tracking (on decryptions).
+#   v1.06 refactor for better folding. IDS DECR-box every run, full every 30 min.
+#   v1.07 any enemy IPs seen at every finish_sd_decr() call are listed.
+#   v1.08 -nitemode which gracefully stops when enemy IP is seen doing decrypts.
+#   v1.09 changed the pm interface. Removed all script writing logic. -nitemode
+#         work continued, but there are still problems. Fixed bug caused by reloading
+#         data at top of hour. The gateway IPs were loaded again, causing IDS to run
+#         several times, and more each hour. Reduced some wait time (speed up).
+#         decr finding logic done inline (vs building a huge string then parsing
+#         it).
+#   v1.10 Lots of little script changes. Did not really monitor all of what changed.
+#   v1.11 IPs and breakers no longer read from file, but computed from running
+#         client.
+#   v1.12 better logging.  Better code for faction IP finding (but not perfect).
+#   v1.13 Set min-decrypt back to 1. Fixed decrypt count. Only shows 1 if there
+#         was actually a decrypt done.  Set minute to run to be variable, so it
+#         can be easily changed and set it to 51 minutes.
+#         changed finish_sd_cracks so that only pwb are completed.  NOTE, still needs work!
+#         fixed bug where blank log would not trip an error output on IDS change.
+#         fixed bug in faction dection logic (was using extract(2) not (1)
+#         NOTE, this version was not copied over to ./run/bak :(
+#   v1.14 Added logic to check for cracker require warez (fwb) and start it if
+#         it is not running.  Then decr required warez (unhide/decr) and restart
+#         them if needed.  Then 'base' warez (fwp, prp, cloak, logdel) and restart
+#         them if needed.  This check is performed each server switch. It probably
+#         should be added to the IDS stuff also, at least to restart if they
+#         go away on IDS watched servers (there may be reason to not have log
+#         del or some other warez running)
+#  v1.15  When doing IDS checking, do not output warnings if the TOP line is
+#         a VALID ids line.  So we can do log changes (while the script is
+#         paused) and if a valid IDS signature is placed, then there will be
+#         no warning at all.    Also added the password as a config var for
+#         the ids check (and put into the config files). This is so a different
+#         IDS password for each user will show as valid.
+#
+################################################################################
+#
+# TODO:
+#
+#    make sure that S_d.pl does not start a new ':40' run, if there are still
+#        cracks going.
+#
+#    Add code to monitor log files of group servers (owned gateways is done).
+#
+# Done:
+#
+#    Make an 'overnite' mode. In this mode, we have a change IP read to go on the
+#        decryptor.  Then every time we switch to decryptor, we check logs.  IF
+#        we see a malware attack, we change the IP, start a new 24 hour IP change
+#        then do NOT add any more decrypt starts, and do not accept any new missions.
+#        We let the other parts of the script work, so that all currently running crypts
+#        are allowed to complete.  NOTE, we should watch time on the MOBs.  If we have
+#        decr that need to be added, add them before switching IP ??
+#
+#    Added code to spit out enemeny IPs seen at each finish_sd_decr task (all seen
+#        during ONLY that finish_sd_decr() are listed.)  This will allow us to have
+#        a much quicker knowledge to enemys, before they can attack us.
+#
+#    IDS check decr gateway every time.  Turn down full IDS to every 20 or 30 min.
+#
+#    Add code to log other gateways trying to crack our servers. This would be
+#        on the complete run (when other IPs are there).   Logs once an hour
+#
+#    make so 2 players can work together (to send AP from one to the other). The
+#        command line switched -teamdecr and -teamcomp are added the -teamdecr
+#        instance will crack servers, and start decrypts.  It gets it's input data
+#        from team_decr_input.txt file.  When it decrypts servers, it writes the IPs
+#        out to a file team_comp_input.txt.  It does NOT complete the work.
+#        The -teamcomp is the user to receive the extra AP.  It is a facton member
+#        to the faction.  The cracking input comes from running faction code. When
+#        it gets the faction IP data, it writes this to team_decr_input.txt file
+#        (for the other instance to use).  Then once items are cracked, this version
+#        reads the completed IPs from team_comp_input.txt file and simply logs in
+#        to those servers and completes the work (does NOT do any decryption).
+#        In this manner, the comp server will gain 45AP each mission, vs 25AP.
+#        The decr server loses 35AP per mission.  There is a gross 15AP loss
+#        (2 cracks). BUT it allows a user with a TON of extra AP to help build
+#        AP for another use MUCH more quickly.
+#        NOTE, the decr user should be icarus (faster decrypts, so MORE work gets done).
+#
+#    Add code to monitor log files of many gateways. Do that every 15 minutes or so.
+#
+#    convert to sub switch_to_gateway() and not switch_to_cracker()/switch_to_decr()
+#
+
